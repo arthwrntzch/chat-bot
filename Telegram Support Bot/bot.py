@@ -6,6 +6,7 @@ import datetime
 import markup
 import sys
 from telebot import apihelper
+import pymysql
 
 if config.PROXY_URL:
     apihelper.proxy = {'https': config.PROXY_URL}
@@ -14,7 +15,7 @@ bot = telebot.TeleBot(config.TOKEN, skip_pending=True)
 
 @bot.message_handler(commands=['start'])
 def start(message):
-    bot.send_message(message.chat.id, '👋Привет 👋 \n\nЭто не совсем бот, сюда присылай ID с PPPoker и я добавлю тебя в клуб 🍅LAS TOMATOES 🍅\n\nМеня зовут Павел, я менеджер клуба, по всем вопросам пиши мне сюда.\n\nХорошей игры и да прибудет с тобой удача🍀', parse_mode='html', reply_markup=markup.markup_main())
+    bot.send_message(message.chat.id, '👋 Привет! 👋\n\n Добро пожаловать в наш клуб 🍅LAS TOMATOES🍅!\n\n Нажмите \"✏️ Написать запрос\" и в первом сообщении укажите свой ID пользователя на PPPoker, чтобы я смог добавить вас в наш клуб.\n\n Меня зовут Павел, я менеджер клуба. Если у вас есть вопросы, пишите мне сюда.\n\n Желаю удачи за столами! 🍀n ', parse_mode='html', reply_markup=markup.markup_main())
 
 
 @bot.message_handler(commands=['agent'])
@@ -64,6 +65,38 @@ def send_text(message):
     else:
         bot.send_message(message.chat.id, 'Вы возвращены в главное меню.', parse_mode='html', reply_markup=markup.markup_main())
 
+
+def notify_agents_about_new_request(req_id):
+    try:
+        # Подключение к базе данных
+        con = pymysql.connect(
+            host=config.MySQL[0],
+            user=config.MySQL[1],
+            passwd=config.MySQL[2],
+            db=config.MySQL[3]
+        )
+        cur = con.cursor()
+
+        # Получение списка всех агентов
+        cur.execute("SELECT `agent_id` FROM agents")
+        agents = cur.fetchall()
+
+        # Логика отправки уведомлений
+        for agent in agents:
+            agent_id = agent[0]
+            try:
+                bot.send_message(agent_id, f"НОВОЕ ОБРАЩЕНИЕ - {req_id}!!!" )
+                print(f"Уведомление отправлено агенту с ID {agent_id}")
+            except Exception as e:
+                print(f"Ошибка при отправке уведомления агенту {agent_id}: {e}")
+
+        cur.close()
+        con.close()
+
+    except pymysql.MySQLError as e:
+        print(f"Ошибка базы данных: {e}")
+    except Exception as e:
+        print(f"Неизвестная ошибка: {e}")
 
 def get_password_message(message):
     password = message.text
@@ -134,8 +167,8 @@ def get_new_request(message):
             req_id = core.new_req(user_id, request)
             core.add_file(req_id, file_id, file_name, type)
 
-            bot.send_message(message.chat.id, f'✅ Ваш запрос под ID {req_id} создан. Посмотреть текущие запросы можно нажав кнопку <b>Мои текущие запросы</b>', parse_mode='html', reply_markup=markup.markup_main())        
-    
+            bot.send_message(message.chat.id, f'✅ Ваш запрос под ID {req_id} создан. Посмотреть текущие запросы можно нажав кнопку <b>Мои текущие запросы</b>', parse_mode='html', reply_markup=markup.markup_main())
+            notify_agents_about_new_request(req_id)
     #Если пользователь отправляет только текст
     else:
         if request == None:
@@ -151,7 +184,7 @@ def get_new_request(message):
         else:
             req_id = core.new_req(user_id, request)
             bot.send_message(message.chat.id, f'✅ Ваш запрос под ID {req_id} создан. Посмотреть текущие запросы можно нажав кнопку <b>Мои текущие запросы</b>', parse_mode='html', reply_markup=markup.markup_main())
-
+            notify_agents_about_new_request(req_id)
 
 def get_additional_message(message, req_id, status):
     additional_message = message.text
