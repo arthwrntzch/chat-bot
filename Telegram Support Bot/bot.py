@@ -7,6 +7,7 @@ import markup
 import sys
 from telebot import apihelper
 import pymysql
+from telebot import types
 
 if config.PROXY_URL:
     apihelper.proxy = {'https': config.PROXY_URL}
@@ -84,8 +85,18 @@ def notify_agents_about_new_request(req_id):
         # Логика отправки уведомлений
         for agent in agents:
             agent_id = agent[0]
+
+            # Создаем разметку с кнопкой
+            markup = types.InlineKeyboardMarkup()
+            reply_button = types.InlineKeyboardButton(
+                text="❗️ Ожидают ответа от поддержки",
+                callback_data="waiting_reqs:1"
+            )
+            markup.add(reply_button)
+
             try:
-                bot.send_message(agent_id, f"НОВОЕ ОБРАЩЕНИЕ - {req_id}!!!" )
+                # Отправляем сообщение с кнопкой
+                bot.send_message(agent_id, f"Новое обращение: {req_id}", reply_markup=markup)
                 print(f"Уведомление отправлено агенту с ID {agent_id}")
             except Exception as e:
                 print(f"Ошибка при отправке уведомления агенту {agent_id}: {e}")
